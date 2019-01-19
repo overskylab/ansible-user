@@ -1,0 +1,10 @@
+---
+user_role_name: user
+
+user_group_authorized_keys_path: "{{ playbook_dir }}/files/groups/{{ item }}/{{ user_role_name }}/authorized_keys"
+user_group_authorized_keys_paths: []
+user_global_authorized_keys_path: "{{ playbook_dir }}/files/authorized_keys"
+
+user_put_authorized_keys_to_root: false
+user_remove_password: true
+user_remove_sudo_password: true

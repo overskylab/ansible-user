@@ -1,0 +1,63 @@
+---
+- block: # Configure authorized_keys
+
+  - name: Set authorized_keys group paths variable
+    set_fact:
+      user_group_authorized_keys_paths: "{{ user_group_authorized_keys_paths }} + [ '{{ user_group_authorized_keys_path }}' ]"
+    with_items: "{{ group_names }}"
+
+  - name: Add global authorized_keys location variable
+    set_fact:
+      user_group_authorized_keys_paths: "{{ user_group_authorized_keys_paths }} + [ '{{ user_global_authorized_keys_path }}' ]"
+
+  # NOTE Add skip: true because there is a bug on Ansible 2.1.1.0 that won't skip
+  # this task on the playbook level
+  - name: Configure authorized_key
+    authorized_key:
+      user: "{{ ansible_user }}"
+      key: "{{ lookup('file', item) }}"
+      state: present
+      exclusive: yes
+    with_first_found:
+    - files: "{{ user_group_authorized_keys_paths }}"
+      skip: true
+    register: user_configure_authorized_keys
+
+  - name: Configure authorized_key for root user
+    authorized_key:
+      user: root
+      key: "{{ lookup('file', item) }}"
+      state: present
+      exclusive: yes
+    with_first_found:
+    - files: "{{ user_group_authorized_keys_paths }}"
+      skip: true
+    when: user_put_authorized_keys_to_root
+
+  tags:
+    - user-configure-authorized_keys
+    - user-configure
+
+
+# Need this fix
+# http://thornelabs.net/2014/04/01/ansible-fix-colon-syntax-error-for-sudoers-file.html
+- name: Configure sudoer file to not ask for password when use sudo
+  lineinfile:
+    "dest=/etc/sudoers
+    state=present
+    regexp='^%sudo\tALL='
+    line='%sudo\tALL=(ALL:ALL) NOPASSWD: ALL'
+    validate='visudo -cf %s'"
+  when:
+    - user_configure_authorized_keys.changed or user_remove_sudo_password
+    - user_remove_sudo_password 
+  tags:
+    - user-configure
+
+- name: Delete password from logged in user
+  command: passwd -d {{ ansible_user }}
+  when: 
+    - user_configure_authorized_keys.changed
+    - user_remove_password
+  tags:
+    - user-configure
